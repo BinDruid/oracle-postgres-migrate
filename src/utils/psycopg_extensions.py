@@ -2,7 +2,7 @@ from psycopg2.extensions import cursor, connection
 from .validator import Validator
 
 
-class MigrationCursor(cursor):
+class PostgresCursor(cursor):
     _table_name = None
     _validator = Validator()
 
@@ -39,9 +39,9 @@ class MigrationCursor(cursor):
         return self._validator.validate_new_record(row, context)
 
 
-class MigrationConnection(connection):
-    """A connection that uses `MigrationCursor` automatically."""
+class PostgresConnection(connection):
+    """A connection that uses `PostgresCursor` automatically."""
 
     def cursor(self, *args, **kwargs):
-        kwargs.setdefault("cursor_factory", self.cursor_factory or MigrationCursor)
+        kwargs.setdefault("cursor_factory", self.cursor_factory or PostgresCursor)
         return super().cursor(*args, **kwargs)
