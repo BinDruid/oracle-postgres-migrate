@@ -1,31 +1,35 @@
 class Validator:
-    null_conditions = {}
-    type_conditions = {}
+    def __init__(self):
+        self.null_conditions = None
+        self.type_conditions = None
 
-    def validate_new_record(self, row, context):
+    def validate_new_record(self, row, oracle_types):
         self._check_not_null(row)
-        self._check_boolean(row, context)
+        self._check_boolean(row, oracle_types)
 
-    def _get_fields_of_type(self, keyword):
+    def _get_fields_of_type(self, field_class):
         return [
             field
             for field, field_type in self.type_conditions.items()
-            if field_type == keyword
+            if field_type == field_class
         ]
 
-    def _get_not_null_fields(self):
+    def _get_none_null_fields(self):
         return [
             field
-            for field, field_constraint in self.null_conditions.items()
-            if field_constraint == "No"
+            for field, null_constraint in self.null_conditions.items()
+            if null_constraint == "NO"
         ]
 
-    def _check_boolean(self, row, context):
-        for field in self._get_fields_of_type("bool"):
-            if context[field] != "bool":
+    def _check_boolean(self, row, oracle_types):
+        for field in self._get_fields_of_type("boolean"):
+            if oracle_types[field] == "number":
                 row[field] = bool(row[field])
 
     def _check_not_null(self, row):
-        for field in self._get_not_null_fields():
-            if row[field] is None:
+        for field in self._get_none_null_fields():
+            if (
+                row[field] is None
+                and self.type_conditions[field] == "character varying"
+            ):
                 row[field] = ""
