@@ -4,7 +4,7 @@ from src.migrator import Migrator
 
 def main():
     table_name = sys.argv[1]
-    migrator = Migrator(table_name)
+    migrator = Migrator(table_name.lower())
     migrator.migrate()
 
 
