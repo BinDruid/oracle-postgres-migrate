@@ -1,26 +1,17 @@
 from psycopg2.extensions import cursor, connection
+from .mixins import CommonCursor
 from .validator import Validator
 
 
-class PostgresCursor(cursor):
-    _table_name = None
-    _validator = Validator()
-
-    @property
-    def table_name(self):
-        return self._table_name
-
-    @table_name.setter
-    def table_name(self, value):
-        self._table_name = value
+class PostgresCursor(cursor, CommonCursor):
+    def __init__(self, conn, name):
+        super().__init__(conn, name)
+        self._table_name = None
+        self._validator = Validator()
 
     @property
     def _schema_query(self):
         return f"select column_name, data_type, is_nullable from information_schema.columns where table_name = '{self.table_name}'"
-
-    @property
-    def _fetch_table_query(self):
-        return f"select * from {self.table_name}"
 
     def set_validation_schema(self):
         self.execute(self._schema_query)
@@ -35,8 +26,8 @@ class PostgresCursor(cursor):
     def get_table(self):
         return self.execute(self._fetch_table_query)
 
-    def migrate_new_record(self, row, context):
-        return self._validator.validate_new_record(row, context)
+    def validate_new_record(self, row, oracle_types):
+        return self._validator.validate_new_record(row, oracle_types)
 
 
 class PostgresConnection(connection):
