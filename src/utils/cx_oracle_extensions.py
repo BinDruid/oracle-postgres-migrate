@@ -1,10 +1,43 @@
 import os
 import cx_Oracle
+from .mixins import CommonCursor
 
 
-class OracleCursor(cx_Oracle.Cursor):
-    def desc(self):
-        pass
+class OracleCursor(cx_Oracle.Cursor, CommonCursor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prefetchrows = 5000
+        self.arraysize = 5000
+        self._table_name = None
+
+    def _value_string(self, count):
+        return ", ".join(["%s"] * count)
+
+    def _get_table(self):
+        return self.execute(self._fetch_table_query)
+
+    def _set_table_columns(self):
+        table_columns = [col[0].lower() for col in self.description]
+        setattr(self, "_table_columns", table_columns)
+    
+    def get_table_meta(self):
+        self._get_table()
+        self._set_table_columns()
+        columns = ", ".join(self._table_columns)
+        value_string = self._value_string(len(self._table_columns))
+        column_types = {
+            col[0].lower(): col[1].name.replace("DB_TYPE_", "").lower()
+            for col in self.description
+        }
+        return columns, value_string, column_types
+
+    def set_row_factory(self):
+        self.rowfactory = lambda *args: dict(zip(self._table_columns, args))
+
+    def read_from_LOB(self, value):
+        if isinstance(value, cx_Oracle.LOB):
+            return value.read()
+        return value
 
 
 class OracleConnection(cx_Oracle.Connection):
