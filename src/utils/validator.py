@@ -6,6 +6,7 @@ class Validator:
     def validate_new_record(self, row, oracle_types):
         self._check_not_null(row)
         self._check_boolean(row, oracle_types)
+        self._check_custom_rules(row, oracle_types)
 
     def _get_fields_of_type(self, field_class):
         return [
@@ -33,3 +34,6 @@ class Validator:
                 and self.type_conditions[field] == "character varying"
             ):
                 row[field] = ""
+
+    def _check_custom_rules(self, row, oracle_types):
+        pass
