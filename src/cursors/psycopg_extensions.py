@@ -1,6 +1,6 @@
 from psycopg2.extensions import cursor, connection
-from .mixins import CommonCursor
-from .validator import Validator
+from src.cursors.mixins import CommonCursor
+from src.utils.validator import Validator
 
 
 class PostgresCursor(cursor, CommonCursor):
