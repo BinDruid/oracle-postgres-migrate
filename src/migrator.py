@@ -1,10 +1,11 @@
 import os
+import time
 import psycopg2
 import cx_Oracle
 import psycopg2.extras
-from django.core.management.base import BaseCommand
-from src.utils.psycopg_extensions import PostgresConnection, PostgresCursor
-from src.utils.cx_oracle_extensions import OracleConnection, OracleCursor
+from src.utils.logging import Logger
+from src.cursors.psycopg_extensions import PostgresConnection, PostgresCursor
+from src.cursors.cx_oracle_extensions import OracleConnection, OracleCursor
 
 
 class Migrator:
@@ -16,9 +17,10 @@ class Migrator:
         self.postgres_connection = PostgresConnection(os.environ["POSTGRES_URL"])
         self.postgres_cursor: PostgresCursor = self.postgres_connection.cursor()
         self.postgres_cursor.table_name = table_name
-        self.logger = BaseCommand()
+        self.logger = Logger()
 
     def migrate(self):
+        total_records = self.oracle_cursor.get_total_records()
         columns, values, oracle_column_types = self.oracle_cursor.get_table_meta()
         self.oracle_cursor.set_row_factory()
         self.postgres_cursor.set_validation_schema()
@@ -30,26 +32,27 @@ class Migrator:
                 )
                 self.postgres_cursor.validate_new_record(row, oracle_column_types)
                 values_list = tuple(
-                    [self.oracle_cursor.read_from_LOB(key) for key in row.values()]
+                    [
+                        self.oracle_cursor.read_from_LOB(column)
+                        for column in row.values()
+                    ]
                 )
                 self.postgres_cursor.execute(insert_query, values_list)
-                self.logger.stdout.write(
-                    self.logger.style.SUCCESS(
-                        f"\nInserting row number < {current_row} >:\n {row} \n"
-                    )
+                self.logger.progress(
+                    current_row,
+                    total_records,
+                    suffix=f"Migrated {current_row} records out of {total_records}",
                 )
                 current_row += 1
+
             except psycopg2.Error as exp:
-                self.logger.stdout.write(
-                    self.logger.style.ERROR(f"Error Code {exp.pgcode}:\n {exp.pgerror}")
-                )
-                self.logger.stdout.write(self.logger.style.ERROR(row))
+                self.logger.write_error(f"Error Code {exp.pgcode}:\n {exp.pgerror}")
+                self.logger.write_error(row)
                 break
 
-        self.logger.stdout.write(self.logger.style.WARNING(f"\nCommiting to database."))
+        self.logger.write_warning(f"\nCommitting to database.")
         self.postgres_connection.commit()
         self.postgres_cursor.close()
         self.oracle_cursor.close()
-        self.logger.stdout.write(
-            self.logger.style.SUCCESS(f"\nSuccessfully populated {self.table_name}.")
-        )
+        self.logger.write_success(f"\nSuccessfully populated {self.table_name}.")
+        # TODO add time elapsed
