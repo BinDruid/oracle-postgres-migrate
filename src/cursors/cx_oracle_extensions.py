@@ -24,8 +24,12 @@ class OracleCursor(cx_Oracle.Cursor, CommonCursor):
         self.execute(self._record_counts_query)
         return self.fetchone()[0]
 
+    def _fix_invalid_column_name(self, cols: list):
+        pass
+            
     def _set_table_columns(self):
         table_columns = [col[0].lower() for col in self.description]
+        self._fix_invalid_column_name(table_columns)
         setattr(self, "_table_columns", table_columns)
 
     def get_table_meta(self):
@@ -42,20 +46,24 @@ class OracleCursor(cx_Oracle.Cursor, CommonCursor):
     def set_row_factory(self):
         self.rowfactory = lambda *args: dict(zip(self._table_columns, args))
 
-    def read_from_LOB(self, value):
-        if isinstance(value, cx_Oracle.LOB):
-            return value.read()
-        return value
+    def read_values(self, row):
+        return tuple([self._read_from_LOB(column) for column in row.values()])
+
+    def _read_from_LOB(self, column):
+        if isinstance(column, cx_Oracle.LOB):
+            return column.read()
+        return column
 
 
 class OracleConnection(cx_Oracle.Connection):
-    def __init__(self):
+    @classmethod
+    def new_connection(cls):
         dns = cx_Oracle.makedsn(
             os.environ["ORACLE_URL"],
             os.environ["ORACLE_PORT"],
             service_name=os.environ["ORACLE_SERVICE"],
         )
-        super().__init__(
+        return cls(
             user=os.environ["ORACLE_USER"],
             password=os.environ["ORACLE_PASS"],
             dsn=dns,
