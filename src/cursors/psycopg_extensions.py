@@ -1,3 +1,4 @@
+import os
 from psycopg2.extensions import cursor, connection
 from src.cursors.mixins import CommonCursor
 from src.utils.validator import Validator
@@ -16,12 +17,19 @@ class PostgresCursor(cursor, CommonCursor):
     def set_validation_schema(self):
         self.execute(self._schema_query)
         conditions = self.fetchall()
+        # TODO use dict(zip)
         self._validator.type_conditions = {
             column[0]: column[1] for column in conditions
         }
         self._validator.null_conditions = {
             column[0]: column[2] for column in conditions
         }
+
+    def disable_foreign_key(self):
+        self.execute(f"alter table {self._table_name} disable trigger all")
+
+    def enable_foreign_key(self):
+        self.execute(f"alter table {self._table_name} enable trigger all")
 
     def get_table(self):
         return self.execute(self._fetch_table_query)
@@ -32,6 +40,10 @@ class PostgresCursor(cursor, CommonCursor):
 
 class PostgresConnection(connection):
     """A connection that uses `PostgresCursor` automatically."""
+
+    @classmethod
+    def new_connection(cls):
+        return cls(os.environ["POSTGRES_URL"])
 
     def cursor(self, *args, **kwargs):
         kwargs.setdefault("cursor_factory", self.cursor_factory or PostgresCursor)
