@@ -1,11 +1,11 @@
 import sys
-from src.migrator import Migrator
+from src.migrator import MigratorManager
 
 
 def main():
     table_name = sys.argv[1]
-    migrator = Migrator(table_name.lower())
-    migrator.migrate()
+    with MigratorManager(table_name.lower()) as migrator:
+        migrator.migrate()
 
 
 if __name__ == "__main__":
