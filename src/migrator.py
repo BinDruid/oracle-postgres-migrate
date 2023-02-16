@@ -70,12 +70,22 @@ class Migrator:
             except Exception as exp:
                 self.logger.write_error(f"\n{exp}")
                 self.logger.write_error(row)
-                break
-
-        self.logger.write_warning(f"\nCommitting to database.")
-        self.postgres_connection.commit()
-        self.postgres_cursor.enable_foreign_key()
-        self.postgres_connection.commit()
-        self.postgres_cursor.close()
-        self.oracle_cursor.close()
-        self.logger.write_success(f"\nSuccessfully populated {self.table_name}.")
+                break        
+            
+class MigratorManager:
+    def __init__(self, table_name):
+        self.migrator = None
+        self.table_name = table_name
+        
+    def __enter__(self) -> Migrator :
+        self.migrator = Migrator(self.table_name)
+        return self.migrator
+    
+    def __exit__(self):
+        self.migrator.logger.write_warning(f"\nCommitting to database.")
+        self.migrator.postgres_connection.commit()
+        self.migrator.postgres_cursor.enable_foreign_key()
+        self.migrator.postgres_connection.commit()
+        self.migrator.postgres_cursor.close()
+        self.migrator.oracle_cursor.close()
+        self.migrator.logger.write_success(f"\nSuccessfully populated {self.migrator.table_name}.")
