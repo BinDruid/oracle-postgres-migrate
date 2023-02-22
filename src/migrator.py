@@ -1,10 +1,8 @@
-import psycopg2
-import cx_Oracle
-import psycopg2.extras
+import time
 from psycopg2.extras import execute_values
 from src.utils.logging import Logger
 from src.cursors.psycopg_extensions import PostgresConnection, PostgresCursor
-from src.cursors.cx_oracle_extensions import OracleConnection, OracleCursor
+from src.cursors.oracle_extensions import OracleConnection, OracleCursor
 
 
 class Migrator:
@@ -32,7 +30,10 @@ class Migrator:
     def _config_initial_setting(self):
         self.oracle_cursor.set_row_factory()
         self.postgres_cursor.set_validation_schema()
-
+        
+    def _extract_values(self, row):
+        return tuple([column for column in row.values()])
+    
     def migrate(self):
         self._config_initial_setting()
         self.postgres_cursor.disable_foreign_key()
@@ -40,8 +41,10 @@ class Migrator:
         current_row = 1
         for row in self.oracle_cursor:
             try:
-                self.postgres_cursor.validate_new_record(row, self.oracle_column_types)
-                values_list.append(self.oracle_cursor.read_values(row))
+                raw_data = self.oracle_cursor.read_values(row)
+                self.postgres_cursor.validate_new_record(raw_data, self.oracle_column_types)
+                values = self._extract_values(raw_data)
+                values_list.append(values)
                 self.logger.progress(
                     current_row,
                     self.total_records,
@@ -62,25 +65,22 @@ class Migrator:
 
                 current_row += 1
 
-            except psycopg2.Error as exp:
-                self.logger.write_error(f"Error Code {exp.pgcode}:\n {exp.pgerror}")
-                self.logger.write_error(row)
-                break
-
             except Exception as exp:
-                self.logger.write_error(f"\n{exp}")
-                self.logger.write_error(row)
-                break        
-            
+                return self.logger.write_error(exp, row)
+
+
 class MigratorManager:
     def __init__(self, table_name):
         self.migrator = None
         self.table_name = table_name
-        
-    def __enter__(self) -> Migrator :
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self) -> Migrator:
         self.migrator = Migrator(self.table_name)
+        self.start_time = time.time()
         return self.migrator
-    
+
     def __exit__(self):
         self.migrator.logger.write_warning(f"\nCommitting to database.")
         self.migrator.postgres_connection.commit()
@@ -88,4 +88,8 @@ class MigratorManager:
         self.migrator.postgres_connection.commit()
         self.migrator.postgres_cursor.close()
         self.migrator.oracle_cursor.close()
-        self.migrator.logger.write_success(f"\nSuccessfully populated {self.migrator.table_name}.")
+        self.end_time = time.time()
+        elapsed_time = self.end_time - self.start_time
+        self.migrator.logger.write_success(
+            f"\nSuccessfully populated {self.table_name} in {elapsed_time/60:.2f} minutes"
+        )
