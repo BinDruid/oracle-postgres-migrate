@@ -1,9 +1,11 @@
 import os
-import cx_Oracle
+import oracledb
 from src.cursors.mixins import CommonCursor
+from src.utils.column_mapper import corrected_columns
 
 
-class OracleCursor(cx_Oracle.Cursor, CommonCursor):
+
+class OracleCursor(oracledb.Cursor, CommonCursor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.prefetchrows = 5000
@@ -25,11 +27,11 @@ class OracleCursor(cx_Oracle.Cursor, CommonCursor):
         return self.fetchone()[0]
 
     def _fix_invalid_column_name(self, cols: list):
-        pass
+        return [corrected_columns[col] if col in corrected_columns else col for col in cols ]
             
     def _set_table_columns(self):
         table_columns = [col[0].lower() for col in self.description]
-        self._fix_invalid_column_name(table_columns)
+        table_columns = self._fix_invalid_column_name(table_columns)
         setattr(self, "_table_columns", table_columns)
 
     def get_table_meta(self):
@@ -37,28 +39,28 @@ class OracleCursor(cx_Oracle.Cursor, CommonCursor):
         self._set_table_columns()
         columns = ", ".join(self._table_columns)
         value_string = self._value_string(len(self._table_columns))
-        column_types = {
-            col[0].lower(): col[1].name.replace("DB_TYPE_", "").lower()
-            for col in self.description
-        }
-        return columns, value_string, column_types
+        column_types = [
+            col[1].name.replace("DB_TYPE_", "").lower() for col in self.description
+        ]
+        column_types_dict = dict(zip(self._table_columns, column_types))
+        return columns, value_string, column_types_dict
 
     def set_row_factory(self):
         self.rowfactory = lambda *args: dict(zip(self._table_columns, args))
 
     def read_values(self, row):
-        return tuple([self._read_from_LOB(column) for column in row.values()])
+        return {field: self._read_from_LOB(value) for field, value in row.items() }
 
     def _read_from_LOB(self, column):
-        if isinstance(column, cx_Oracle.LOB):
+        if isinstance(column, oracledb.LOB):
             return column.read()
         return column
 
 
-class OracleConnection(cx_Oracle.Connection):
+class OracleConnection(oracledb.Connection):
     @classmethod
     def new_connection(cls):
-        dns = cx_Oracle.makedsn(
+        dns = oracledb.makedsn(
             os.environ["ORACLE_URL"],
             os.environ["ORACLE_PORT"],
             service_name=os.environ["ORACLE_SERVICE"],
