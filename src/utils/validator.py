@@ -5,6 +5,7 @@ class Validator:
 
     def validate_new_record(self, row, oracle_types):
         self._check_not_null(row)
+        self._replace_null_string(row)
         self._check_boolean(row, oracle_types)
         self._check_custom_rules(row, oracle_types)
 
@@ -14,7 +15,11 @@ class Validator:
             for field, field_type in self.type_conditions.items()
             if field_type == field_class
         ]
-
+    def _replace_null_string(self, row):
+        for field, value in row.items():
+            if isinstance(value, str):
+                row[field] = value.replace("\x00", "")
+                
     def _get_none_null_fields(self):
         return [
             field
