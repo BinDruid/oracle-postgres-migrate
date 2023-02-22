@@ -1,3 +1,4 @@
+import psycopg2
 from django.core.management.base import BaseCommand
 
 
@@ -5,8 +6,12 @@ class Logger:
     def __init__(self):
         self._logger = BaseCommand()
 
-    def write_error(self, msg, *args, **kwargs):
-        self._logger.stdout.write(self._logger.style.ERROR(msg), *args, **kwargs)
+    def write_error(self, exp, row, *args, **kwargs):
+        if isinstance (exp, psycopg2.Error):
+            self._logger.stdout.write(self._logger.style.ERROR(f"Error Code {exp.pgcode}:\n {exp.pgerror}"), *args, **kwargs)
+        else:
+            self._logger.stdout.write(self._logger.style.ERROR(f"\n{exp}"), *args, **kwargs)
+        self._logger.stdout.write(self._logger.style.WARNING(row), *args, **kwargs)
 
     def write_success(self, msg, *args, **kwargs):
         self._logger.stdout.write(self._logger.style.SUCCESS(msg), *args, **kwargs)
