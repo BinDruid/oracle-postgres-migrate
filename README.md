@@ -1,6 +1,6 @@
 # Oracle to PostgreSQL
 
-Migrator script for a existing oracle database to an existing but empty PostgreSQL database.
+Migrator script for an existing oracle database to an existing but empty PostgreSQL database.
 
 ## When to use this?
 
