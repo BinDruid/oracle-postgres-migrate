@@ -1,4 +1,5 @@
 import time
+import json
 from psycopg2.extras import execute_values
 from src.utils.logging import Logger
 from src.cursors.psycopg_extensions import PostgresConnection, PostgresCursor
@@ -30,10 +31,10 @@ class Migrator:
     def _config_initial_setting(self):
         self.oracle_cursor.set_row_factory()
         self.postgres_cursor.set_validation_schema()
-        
+
     def _extract_values(self, row):
         return tuple([column for column in row.values()])
-    
+
     def migrate(self):
         self._config_initial_setting()
         self.postgres_cursor.disable_foreign_key()
@@ -42,7 +43,9 @@ class Migrator:
         for row in self.oracle_cursor:
             try:
                 raw_data = self.oracle_cursor.read_values(row)
-                self.postgres_cursor.validate_new_record(raw_data, self.oracle_column_types)
+                self.postgres_cursor.validate_new_record(
+                    raw_data, self.oracle_column_types
+                )
                 values = self._extract_values(raw_data)
                 values_list.append(values)
                 self.logger.progress(
@@ -93,3 +96,6 @@ class MigratorManager:
         self.migrator.logger.write_success(
             f"\nSuccessfully populated {self.table_name} in {elapsed_time/60:.2f} minutes"
         )
+        with open("current.json", "w") as file:
+            json_string = json.dumps({"current.json": self.table_name})
+            file.write(json_string)
